@@ -1,4 +1,6 @@
 mod media;
+mod desktop;
+use tauri::Manager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
@@ -9,6 +11,13 @@ fn greet(name: &str) -> String {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
+        .manage(desktop::HitRegions::default())
+        .setup(|app| {
+            let window = app.get_webview_window("main").expect("main window missing");
+            desktop::pin_to_desktop(&window)?;
+            desktop::start_click_through(window);
+            Ok(())
+        })
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
@@ -17,6 +26,7 @@ pub fn run() {
             media::media_now_playing,
             media::media_artwork,
             media::media_control
+            desktop::set_hit_regions
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
