@@ -355,7 +355,17 @@ for (const def of DEFAULT_LAYOUT) {
 layout = layout.filter((w) => widgetTypes[w.type]);
 
 async function saveLayout() {
+  reportHitRegions();
   await store.set("widgets", layout);
+}
+
+// Tells Rust which areas should take clicks. Everywhere else passes through to the desktop.
+// In edit mode the whole screen takes clicks so you can drag freely.
+function reportHitRegions() {
+  const regions = editMode
+    ? [{ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }]
+    : layout.map((w) => ({ x: w.x, y: w.y, w: w.w, h: w.h }));
+  window.__TAURI__.core.invoke("set_hit_regions", { regions });
 }
 
 // ---------- Helpers ----------
@@ -439,6 +449,7 @@ function render() {
 function setEditMode(on) {
   editMode = on;
   document.body.classList.toggle("editing", on);
+  reportHitRegions();
 }
 
 window.addEventListener("keydown", (e) => {
@@ -456,3 +467,5 @@ document.getElementById("reset-btn").addEventListener("click", async () => {
 });
 
 render();
+reportHitRegions();
+window.addEventListener("resize", reportHitRegions);
