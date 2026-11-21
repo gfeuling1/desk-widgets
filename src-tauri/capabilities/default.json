@@ -9,9 +9,12 @@
     "core:default",
     "opener:default",
     "store:default",
-    {
-  "identifier": "http:default",
-  "allow": [{ "url": "https://calendar.google.com/*" }]
-}
+  {
+    "identifier": "http:default",
+    "allow": [
+      { "url": "https://calendar.google.com/*" },
+      { "url": "https://api.open-meteo.com/*" }
+    ]
+  }
   ]
 }

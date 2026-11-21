@@ -75,7 +75,7 @@ const widgetTypes = {
     return () => clearInterval(timer);
   },
 
-  weather(el) {
+    weather(el) {
     const cfg = SETTINGS.weather;
     const unit = cfg.temperatureUnit === "celsius" ? "C" : "F";
     el.innerHTML = `
@@ -87,12 +87,43 @@ const widgetTypes = {
           <div class="wx-meta"></div>
         </div>
       </div>
-      <div class="wx-days"></div>`;
+      <div class="wx-days"></div>
+      <div class="wx-status"></div>`;
     const temp = el.querySelector(".wx-temp");
     const desc = el.querySelector(".wx-desc");
     const meta = el.querySelector(".wx-meta");
     const days = el.querySelector(".wx-days");
+    const status = el.querySelector(".wx-status");
 
+    function minutesAgo(time) {
+      const mins = Math.round((Date.now() - time) / 60000);
+      if (mins < 1) return "just now";
+      if (mins < 60) return `${mins} min ago`;
+      return `${Math.round(mins / 60)} hr ago`;
+    }
+
+    function show(data) {
+      const c = data.current;
+      temp.textContent = `${Math.round(c.temperature_2m)}°${unit}`;
+      desc.textContent = WEATHER_CODES[c.weather_code] ?? "Unknown";
+      meta.textContent =
+        `Feels ${Math.round(c.apparent_temperature)}° · ${c.relative_humidity_2m}% humidity · ` +
+        `${Math.round(c.wind_speed_10m)} ${cfg.windUnit}`;
+
+      const d = data.daily;
+      days.innerHTML = d.time.map((day, i) => {
+        const label = i === 0 ? "Today"
+          : new Date(day + "T00:00").toLocaleDateString([], { weekday: "short" });
+        return `
+          <div class="wx-day">
+            <div class="wx-day-name">${label}</div>
+            <div class="wx-day-desc">${WEATHER_CODES[d.weather_code[i]] ?? ""}</div>
+            <div class="wx-day-temps">${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</div>
+          </div>`;
+      }).join("");
+    }
+
+    // Returns true if fresh weather loaded, false if it fell back to saved weather.
     async function update() {
       try {
         const params = new URLSearchParams({
@@ -105,38 +136,41 @@ const widgetTypes = {
           timezone: "auto",
           forecast_days: 4,
         });
-        const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+        const res = await tauriFetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
+          connectTimeout: 8000, // give up on a hanging server after 8 seconds
+        });
         if (!res.ok) throw new Error(`Weather request failed: ${res.status}`);
         const data = await res.json();
-
-        const c = data.current;
-        temp.textContent = `${Math.round(c.temperature_2m)}°${unit}`;
-        desc.textContent = WEATHER_CODES[c.weather_code] ?? "Unknown";
-        meta.textContent =
-          `Feels ${Math.round(c.apparent_temperature)}° · ${c.relative_humidity_2m}% humidity · ` +
-          `${Math.round(c.wind_speed_10m)} ${cfg.windUnit}`;
-
-        const d = data.daily;
-        days.innerHTML = d.time.map((day, i) => {
-          const label = i === 0 ? "Today"
-            : new Date(day + "T00:00").toLocaleDateString([], { weekday: "short" });
-          return `
-            <div class="wx-day">
-              <div class="wx-day-name">${label}</div>
-              <div class="wx-day-desc">${WEATHER_CODES[d.weather_code[i]] ?? ""}</div>
-              <div class="wx-day-temps">${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</div>
-            </div>`;
-        }).join("");
+        show(data);
+        status.textContent = "";
+        await store.set("weatherCache", { data, savedAt: Date.now() });
+        return true;
       } catch (err) {
         console.error(err);
-        desc.textContent = "Weather unavailable";
+        const cached = await store.get("weatherCache");
+        if (cached) {
+          show(cached.data);
+          status.textContent = `Offline · last updated ${minutesAgo(cached.savedAt)}`;
+        } else {
+          desc.textContent = "Weather unavailable";
+          status.textContent = "Retrying soon";
+        }
+        return false;
       }
     }
 
-    update();
-    const timer = setInterval(update, cfg.refreshMinutes * 60 * 1000);
-    return () => clearInterval(timer);
+    // Refresh normally every few minutes, but retry sooner after a failure.
+    let timer;
+    let stopped = false;
+    async function loop() {
+      const ok = await update();
+      if (stopped) return;
+      timer = setTimeout(loop, ok ? cfg.refreshMinutes * 60000 : 2 * 60000);
+    }
+    loop();
+    return () => { stopped = true; clearTimeout(timer); };
   },
+
     calendar(el) {
     const cfg = SETTINGS.calendar;
     el.innerHTML = `<div class="cal-header">Upcoming</div><div class="cal-list">Loading...</div>`;
