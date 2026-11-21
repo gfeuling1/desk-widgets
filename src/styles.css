@@ -71,3 +71,23 @@ html, body {
   cursor: pointer;
 }
 #edit-banner #reset-btn { background: #555; }
+
+/* Weather */
+.wx-place { font-size: 13px; opacity: 0.7; margin-bottom: 4px; }
+.wx-now { display: flex; align-items: center; gap: 16px; }
+.wx-temp { font-size: min(28cqh, 20cqw); font-weight: 300; line-height: 1; }
+.wx-desc { font-size: 18px; }
+.wx-meta { font-size: 12px; opacity: 0.75; margin-top: 4px; }
+
+.wx-days {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  margin-top: 14px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+.wx-day { font-size: 12px; text-align: center; }
+.wx-day-name { font-weight: 600; }
+.wx-day-desc { opacity: 0.7; margin: 2px 0; min-height: 2.4em; }
+.wx-day-temps { opacity: 0.9; }
