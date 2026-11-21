@@ -111,3 +111,96 @@ html, body {
 .cal-list::-webkit-scrollbar { width: 4px; }
 .cal-list::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.3); border-radius: 2px; }
 .wx-status { font-size: 11px; opacity: 0.6; margin-top: 8px; }
+
+/* Music */
+.mu { position: relative; display: flex; align-items: center; gap: 18px; height: 100%; }
+.mu-visual { position: relative; height: 100%; aspect-ratio: 1; flex-shrink: 0; }
+.mu-info { flex: 1; min-width: 0; }
+.mu-title { font-size: 18px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.mu-artist { font-size: 13px; opacity: 0.75; margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.mu-progress { height: 4px; margin-top: 14px; border-radius: 2px; background: rgba(255, 255, 255, 0.2); overflow: hidden; }
+.mu-bar { height: 100%; width: 0%; background: white; border-radius: 2px; transition: width 1s linear; }
+.mu-times { display: flex; justify-content: space-between; font-size: 11px; opacity: 0.6; margin-top: 4px; }
+
+.mu-controls { display: flex; justify-content: center; gap: 14px; margin-top: 10px; }
+.mu-controls button {
+  width: 36px; height: 36px;
+  display: grid; place-items: center;
+  border: none; border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  color: white; cursor: pointer;
+}
+.mu-controls button:hover { background: rgba(255, 255, 255, 0.25); }
+.mu-controls .mu-toggle { width: 44px; height: 44px; background: rgba(255, 255, 255, 0.9); color: #111; }
+.mu-controls svg { width: 18px; height: 18px; fill: currentColor; }
+
+.mu-view-btn {
+  position: absolute; top: -6px; right: -12px;
+  padding: 2px 8px; font-size: 11px;
+  border: none; border-radius: 6px;
+  background: rgba(255, 255, 255, 0.15); color: white;
+  cursor: pointer; opacity: 0; transition: opacity 0.2s;
+}
+.mu:hover .mu-view-btn { opacity: 1; }
+
+/* Record player view */
+.mu-record {
+  position: absolute; inset: 4%;
+  border-radius: 50%;
+  background:
+    radial-gradient(circle, transparent 30%, rgba(255, 255, 255, 0.06) 31%, transparent 33%),
+    repeating-radial-gradient(circle, #121212 0 1px, #1e1e1e 1px 3px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5), inset 0 0 0 2px #0a0a0a;
+  display: grid; place-items: center;
+  animation: mu-spin 3.6s linear infinite;
+  animation-play-state: paused;
+}
+/* Light reflection that stays still while the record spins */
+.mu-visual::before {
+  content: ""; position: absolute; inset: 4%; border-radius: 50%; z-index: 1; pointer-events: none;
+  background: conic-gradient(from 30deg, transparent 0 20%, rgba(255,255,255,0.08) 25%, transparent 30% 70%, rgba(255,255,255,0.06) 75%, transparent 80%);
+}
+.mu.playing .mu-record { animation-play-state: running; }
+.mu-label {
+  position: relative; width: 36%; aspect-ratio: 1;
+  border-radius: 50%; overflow: hidden; background: #3b3b4f;
+}
+.mu-label img { width: 100%; height: 100%; object-fit: cover; }
+.mu-label::after { /* spindle hole */
+  content: ""; position: absolute; inset: 44%; border-radius: 50%; background: #0d0d0d;
+}
+@keyframes mu-spin { to { transform: rotate(360deg); } }
+
+/* Tonearm: pivots at the top right, swings onto the record when playing */
+.mu-arm {
+  position: absolute; z-index: 2;
+  top: 2%; right: 4%;
+  width: 4%; height: 58%;
+  border-radius: 3px;
+  background: linear-gradient(90deg, #9a9a9a, #e6e6e6, #9a9a9a);
+  transform-origin: 50% 4%;
+  transform: rotate(-8deg);
+  transition: transform 0.8s ease;
+}
+.mu-arm::before { /* pivot */
+  content: ""; position: absolute; top: -10%; left: 50%;
+  width: 260%; aspect-ratio: 1; transform: translate(-50%, 0);
+  border-radius: 50%; background: radial-gradient(circle, #ddd 30%, #777 70%);
+}
+.mu-arm::after { /* head */
+  content: ""; position: absolute; bottom: -6%; left: 50%;
+  width: 200%; height: 14%; transform: translateX(-50%) rotate(20deg);
+  border-radius: 2px; background: #cfcfcf;
+}
+.mu.playing .mu-arm { transform: rotate(24deg); }
+
+/* Album cover view */
+.mu-cover { display: none; width: 100%; height: 100%; object-fit: cover; border-radius: 10px; box-shadow: 0 6px 18px rgba(0, 0, 0, 0.5); }
+.view-cover .mu-record, .view-cover .mu-arm, .view-cover .mu-visual::before { display: none; }
+.view-cover .mu-cover { display: block; }
+
+/* Minimal view: just the text and controls */
+.view-minimal .mu-visual { display: none; }
+
+.mu.idle .mu-controls, .mu.idle .mu-progress { opacity: 0.4; }
