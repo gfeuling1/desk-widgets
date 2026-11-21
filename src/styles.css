@@ -12,12 +12,62 @@ html, body {
 
 .widget {
   position: absolute;
+  box-sizing: border-box;
   padding: 16px 24px;
   border-radius: 16px;
   background: rgba(20, 20, 30, 0.45);
   backdrop-filter: blur(12px);
   box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+  overflow: hidden;
+  container-type: size; /* lets text scale with the widget */
 }
 
-.clock-time { font-size: 64px; font-weight: 300; line-height: 1; }
-.clock-date { font-size: 18px; opacity: 0.8; margin-top: 6px; }
+.widget-content { width: 100%; height: 100%; }
+
+/* Clock */
+.clock-time { font-size: min(45cqh, 22cqw); font-weight: 300; line-height: 1; }
+.clock-date { font-size: min(14cqh, 7cqw); opacity: 0.8; margin-top: 6px; }
+
+/* Edit mode */
+.editing #desktop { background: rgba(0, 0, 0, 0.25); }
+.editing .widget { outline: 2px dashed rgba(255, 255, 255, 0.7); cursor: move; }
+
+.resize-handle {
+  display: none;
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  width: 14px;
+  height: 14px;
+  border-right: 3px solid white;
+  border-bottom: 3px solid white;
+  cursor: nwse-resize;
+}
+.editing .resize-handle { display: block; }
+
+#edit-banner {
+  display: none;
+  position: fixed;
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 10;
+  padding: 10px 16px;
+  border-radius: 12px;
+  background: rgba(20, 20, 30, 0.85);
+  font-size: 14px;
+  align-items: center;
+  gap: 12px;
+}
+.editing #edit-banner { display: flex; }
+
+#edit-banner button {
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  background: #3b82f6;
+  color: white;
+  font: inherit;
+  cursor: pointer;
+}
+#edit-banner #reset-btn { background: #555; }
