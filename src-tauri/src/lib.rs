@@ -13,12 +13,25 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .manage(desktop::HitRegions::default())
-        .setup(|app| {
+                .setup(|app| {
             let window = app.get_webview_window("main").expect("main window missing");
             desktop::pin_to_desktop(&window)?;
-            desktop::start_click_through(window);
+            desktop::start_click_through(window.clone());
+            desktop::start_explorer_watchdog(window);
+
+            // Start with Windows, but only for the installed app, not `npm run tauri dev`.
+            #[cfg(not(debug_assertions))]
+            {
+                use tauri_plugin_autostart::ManagerExt;
+                let autostart = app.autolaunch();
+                if !autostart.is_enabled().unwrap_or(false) {
+                    let _ = autostart.enable();
+                }
+            }
             Ok(())
         })
+        .plugin(tauri_plugin_single_instance::init(|_app, _args, _cwd| {}))
+        .plugin(tauri_plugin_autostart::Builder::new().build())
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
