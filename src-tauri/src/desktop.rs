@@ -75,3 +75,20 @@ pub fn set_hit_regions(regions: Vec<Rect>, state: tauri::State<HitRegions>) {
         *current = regions;
     }
 }
+
+// When Explorer restarts (after a crash or some updates), Windows makes a brand-new
+// desktop window. Every 2 seconds, check that we're still attached to the current
+// one, and reattach if not.
+pub fn start_explorer_watchdog(window: WebviewWindow) {
+    std::thread::spawn(move || loop {
+        std::thread::sleep(Duration::from_secs(2));
+        let Ok(raw) = window.hwnd() else { continue };
+        let hwnd = HWND(raw.0);
+        // While Explorer is still starting up, there's no Progman yet, so wait.
+        let Ok(progman) = (unsafe { FindWindowW(w!("Progman"), None) }) else { continue };
+        let owner = unsafe { GetWindowLongPtrW(hwnd, GWLP_HWNDPARENT) };
+        if owner != progman.0 as isize && pin_to_desktop(&window).is_ok() {
+            let _ = window.show();
+        }
+    });
+}
