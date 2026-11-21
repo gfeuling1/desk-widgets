@@ -1,4 +1,15 @@
+import { upcomingEvents } from "./calendar.js";
+
 const { load } = window.__TAURI__.store;
+const { fetch: tauriFetch } = window.__TAURI__.http;
+
+// Private calendar links live in config.local.js, which is never committed.
+let CALENDARS = [];
+try {
+  ({ CALENDARS } = await import("./config.local.js"));
+} catch {
+  console.warn("No src/config.local.js found, so the calendar widget is empty.");
+}
 
 const GRID = 10;          // widgets snap to a 10px grid
 const MIN_W = 120;
@@ -14,13 +25,24 @@ const SETTINGS = {
     windUnit: "mph",               // or "kmh"
     refreshMinutes: 15,
   },
+  calendar: {
+    daysAhead: 7,
+    maxEvents: 8,
+    refreshMinutes: 10,
+  },
 };
 
 // Every widget that should exist. New ones get added to your saved layout automatically.
 const DEFAULT_LAYOUT = [
   { id: "clock-1", type: "clock", x: 60, y: 60, w: 340, h: 140 },
   { id: "weather-1", type: "weather", x: 60, y: 220, w: 340, h: 230 },
+  { id: "calendar-1", type: "calendar", x: 60, y: 470, w: 340, h: 300 },
 ];
+
+// Makes text from outside sources safe to put into the page.
+const escapeHtml = (text) =>
+  String(text).replace(/[&<>"']/g, (ch) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
 
 // Weather code meanings from Open-Meteo's documentation.
 const WEATHER_CODES = {
@@ -108,6 +130,72 @@ const widgetTypes = {
       } catch (err) {
         console.error(err);
         desc.textContent = "Weather unavailable";
+      }
+    }
+
+    update();
+    const timer = setInterval(update, cfg.refreshMinutes * 60 * 1000);
+    return () => clearInterval(timer);
+  },
+    calendar(el) {
+    const cfg = SETTINGS.calendar;
+    el.innerHTML = `<div class="cal-header">Upcoming</div><div class="cal-list">Loading...</div>`;
+    const list = el.querySelector(".cal-list");
+
+    if (CALENDARS.length === 0) {
+      list.textContent = "Add a calendar link in src/config.local.js";
+      return;
+    }
+
+    function dayLabel(date) {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const day = new Date(date); day.setHours(0, 0, 0, 0);
+      const diff = Math.round((day - today) / 86400000);
+      if (diff <= 0) return "Today";
+      if (diff === 1) return "Tomorrow";
+      return date.toLocaleDateString([], { weekday: "long", month: "short", day: "numeric" });
+    }
+
+    function show(events) {
+      if (events.length === 0) {
+        list.textContent = "Nothing coming up";
+        return;
+      }
+      const now = new Date();
+      let html = "";
+      let lastDay = "";
+      for (const ev of events) {
+        const day = dayLabel(ev.start);
+        if (day !== lastDay) {
+          html += `<div class="cal-day">${day}</div>`;
+          lastDay = day;
+        }
+        const time = ev.allDay ? "All day"
+          : ev.start <= now ? "Now"
+          : ev.start.toLocaleTimeString([], { hour: "numeric", minute: "2-digit" });
+        html += `
+          <div class="cal-event">
+            <span class="cal-dot" style="background:${escapeHtml(ev.color)}"></span>
+            <span class="cal-time">${time}</span>
+            <span class="cal-title">${escapeHtml(ev.title)}</span>
+          </div>`;
+      }
+      list.innerHTML = html;
+    }
+
+    async function update() {
+      try {
+        const all = [];
+        for (const cal of CALENDARS) {
+          const res = await tauriFetch(cal.url);
+          if (!res.ok) throw new Error(`${cal.name} calendar failed: ${res.status}`);
+          all.push(...upcomingEvents(await res.text(), cal.name, cal.color, cfg.daysAhead));
+        }
+        all.sort((a, b) => a.start - b.start);
+        show(all.slice(0, cfg.maxEvents));
+      } catch (err) {
+        console.error(err);
+        list.textContent = "Calendar unavailable";
       }
     }
 
