@@ -37,6 +37,7 @@ const DEFAULT_LAYOUT = [
   { id: "clock-1", type: "clock", x: 60, y: 60, w: 340, h: 140 },
   { id: "weather-1", type: "weather", x: 60, y: 220, w: 340, h: 230 },
   { id: "calendar-1", type: "calendar", x: 60, y: 470, w: 340, h: 300 },
+  { id: "music-1", type: "music", x: 440, y: 60, w: 460, h: 220, view: "record" },
 ];
 
 // Makes text from outside sources safe to put into the page.
@@ -237,6 +238,110 @@ const widgetTypes = {
     const timer = setInterval(update, cfg.refreshMinutes * 60 * 1000);
     return () => clearInterval(timer);
   },
+    music(el, item) {
+    const { invoke } = window.__TAURI__.core;
+    const VIEWS = ["record", "cover", "minimal"];
+    const icon = {
+      prev: `<svg viewBox="0 0 24 24"><path d="M6 5h2v14H6zM20 5v14L9 12z"/></svg>`,
+      next: `<svg viewBox="0 0 24 24"><path d="M16 5h2v14h-2zM4 5v14l11-7z"/></svg>`,
+      play: `<svg viewBox="0 0 24 24"><path d="M7 4v16l13-8z"/></svg>`,
+      pause: `<svg viewBox="0 0 24 24"><path d="M6 4h4v16H6zM14 4h4v16h-4z"/></svg>`,
+    };
+
+    el.innerHTML = `
+      <div class="mu">
+        <div class="mu-visual">
+          <div class="mu-record"><div class="mu-label"><img class="mu-art" alt=""></div></div>
+          <div class="mu-arm"></div>
+          <img class="mu-cover mu-art" alt="">
+        </div>
+        <div class="mu-info">
+          <div class="mu-title">Nothing playing</div>
+          <div class="mu-artist"></div>
+          <div class="mu-progress"><div class="mu-bar"></div></div>
+          <div class="mu-times"><span class="mu-pos"></span><span class="mu-dur"></span></div>
+          <div class="mu-controls">
+            <button data-action="previous" title="Previous">${icon.prev}</button>
+            <button data-action="toggle" class="mu-toggle" title="Play/Pause">${icon.play}</button>
+            <button data-action="next" title="Next">${icon.next}</button>
+          </div>
+        </div>
+        <button class="mu-view-btn" title="Change view">View</button>
+      </div>`;
+
+    const root = el.querySelector(".mu");
+    const $ = (sel) => el.querySelector(sel);
+    const arts = el.querySelectorAll(".mu-art");
+    let lastTrack = "";
+
+    const setView = (view) => {
+      VIEWS.forEach((v) => root.classList.remove(`view-${v}`));
+      root.classList.add(`view-${view}`);
+    };
+    setView(item.view ?? "record");
+
+    $(".mu-view-btn").addEventListener("click", () => {
+      const next = VIEWS[(VIEWS.indexOf(item.view ?? "record") + 1) % VIEWS.length];
+      item.view = next;
+      setView(next);
+      saveLayout();
+    });
+
+    el.querySelectorAll(".mu-controls button").forEach((btn) =>
+      btn.addEventListener("click", async () => {
+        await invoke("media_control", { action: btn.dataset.action });
+        setTimeout(update, 300); // refresh quickly so the button feels instant
+      }));
+
+    const fmt = (ms) => {
+      const total = Math.max(0, Math.floor(ms / 1000));
+      return `${Math.floor(total / 60)}:${String(total % 60).padStart(2, "0")}`;
+    };
+
+    async function update() {
+      try {
+        const now = await invoke("media_now_playing");
+        if (!now || !now.title) {
+          root.classList.remove("playing");
+          root.classList.add("idle");
+          $(".mu-title").textContent = "Nothing playing";
+          $(".mu-artist").textContent = "";
+          $(".mu-times").style.visibility = "hidden";
+          $(".mu-bar").style.width = "0%";
+          lastTrack = "";
+          return;
+        }
+        root.classList.remove("idle");
+        root.classList.toggle("playing", now.playing);
+        $(".mu-title").textContent = now.title;
+        $(".mu-artist").textContent = [now.artist, now.album].filter(Boolean).join(" · ");
+        $(".mu-toggle").innerHTML = now.playing ? icon.pause : icon.play;
+
+        const hasTime = now.durationMs > 0;
+        $(".mu-times").style.visibility = hasTime ? "visible" : "hidden";
+        $(".mu-pos").textContent = fmt(now.positionMs);
+        $(".mu-dur").textContent = fmt(now.durationMs);
+        $(".mu-bar").style.width = hasTime ? `${(now.positionMs / now.durationMs) * 100}%` : "0%";
+
+        // Only fetch album art when the song changes.
+        const track = `${now.title}|${now.artist}|${now.album}`;
+        if (track !== lastTrack) {
+          lastTrack = track;
+          const art = await invoke("media_artwork");
+          arts.forEach((img) => {
+            img.src = art ?? "";
+            img.style.visibility = art ? "visible" : "hidden";
+          });
+        }
+      } catch (err) {
+        console.error(err);
+      }
+    }
+
+    update();
+    const timer = setInterval(update, 1000);
+    return () => clearInterval(timer);
+  },
 };
 
 // ---------- Saving and loading ----------
@@ -300,7 +405,7 @@ function render() {
     el.appendChild(handle);
 
     desktop.appendChild(el);
-    const stop = widgetTypes[item.type](content);
+    const stop = widgetTypes[item.type](content, item);
     if (typeof stop === "function") cleanups.push(stop);
 
     // Drag to move
