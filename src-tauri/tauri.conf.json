@@ -9,12 +9,18 @@
   "app": {
     "withGlobalTauri": true,
     "windows": [
-      {
-        "title": "desk-widgets",
-        "width": 800,
-        "height": 600
-      }
-    ],
+  {
+    "label": "main",
+    "title": "Desk Widgets",
+    "transparent": true,
+    "decorations": false,
+    "shadow": false,
+    "maximized": true,
+    "resizable": false,
+    "skipTaskbar": true,
+    "alwaysOnBottom": true
+  }
+  ],
     "security": {
       "csp": null
     }
