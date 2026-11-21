@@ -1,4 +1,5 @@
 import { upcomingEvents } from "./calendar.js";
+import { fenceWidget, listenForFileDrops, FENCE_COLORS, COLLAPSED_H } from "./fences.js";
 
 const { load } = window.__TAURI__.store;
 const { fetch: tauriFetch } = window.__TAURI__.http;
@@ -38,6 +39,10 @@ const DEFAULT_LAYOUT = [
   { id: "weather-1", type: "weather", x: 60, y: 220, w: 340, h: 230 },
   { id: "calendar-1", type: "calendar", x: 60, y: 470, w: 340, h: 300 },
   { id: "music-1", type: "music", x: 440, y: 60, w: 460, h: 220, view: "record" },
+  { id: "fence-desktop", type: "fence", title: "Desktop", color: "#5aa9ff", folder: "Desktop",
+    hideClaimed: true, sort: "name", x: 440, y: 300, w: 460, h: 320 },
+  { id: "fence-downloads", type: "fence", title: "Downloads", color: "#b78cff", folder: "Downloads",
+    sort: "newest", maxItems: 30, x: 920, y: 60, w: 340, h: 320 },
 ];
 
 // Makes text from outside sources safe to put into the page.
@@ -238,6 +243,7 @@ const widgetTypes = {
     const timer = setInterval(update, cfg.refreshMinutes * 60 * 1000);
     return () => clearInterval(timer);
   },
+    fence: (el, item) => fenceWidget(el, item, fenceApp),
     music(el, item) {
     const { invoke } = window.__TAURI__.core;
     const VIEWS = ["record", "cover", "minimal"];
@@ -348,11 +354,14 @@ const widgetTypes = {
 const store = await load("layout.json", { autoSave: 300 });
 let layout = (await store.get("widgets")) ?? [];
 
+// Default widgets you deleted on purpose, so they don't come back.
+const hiddenDefaults = (await store.get("hiddenDefaults")) ?? [];
+
 // Add any default widgets missing from the saved layout, and drop unknown ones.
 for (const def of DEFAULT_LAYOUT) {
+  if (hiddenDefaults.includes(def.id)) continue;
   if (!layout.some((w) => w.id === def.id)) layout.push(structuredClone(def));
 }
-layout = layout.filter((w) => widgetTypes[w.type]);
 
 async function saveLayout() {
   reportHitRegions();
@@ -364,19 +373,20 @@ async function saveLayout() {
 function reportHitRegions() {
   const regions = editMode
     ? [{ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }]
-    : layout.map((w) => ({ x: w.x, y: w.y, w: w.w, h: w.h }));
+    : layout.map((w) => ({ x: w.x, y: w.y, w: w.w, h: boxHeight(w) }));
   window.__TAURI__.core.invoke("set_hit_regions", { regions });
 }
 
 // ---------- Helpers ----------
 const snap = (n) => Math.round(n / GRID) * GRID;
 const clamp = (n, min, max) => Math.max(min, Math.min(n, max));
+const boxHeight = (item) => (item.collapsed ? COLLAPSED_H : item.h);
 
 function applyBox(el, item) {
   el.style.left = item.x + "px";
   el.style.top = item.y + "px";
   el.style.width = item.w + "px";
-  el.style.height = item.h + "px";
+  el.style.height = boxHeight(item) + "px";
 }
 
 // Follows the mouse after a press until it's released.
@@ -403,7 +413,8 @@ function render() {
   desktop.innerHTML = "";
   for (const item of layout) {
     const el = document.createElement("div");
-    el.className = "widget";
+    el.className = `widget widget-${item.type}`;
+    el.dataset.id = item.id;
     applyBox(el, item);
 
     const content = document.createElement("div");
@@ -421,6 +432,7 @@ function render() {
     // Drag to move
     el.addEventListener("pointerdown", (e) => {
       if (!editMode || e.target === handle) return;
+      if (e.target.closest("[data-no-drag], [contenteditable=true]")) return;
       e.preventDefault();
       const startX = item.x, startY = item.y;
       trackPointer(el, e, (dx, dy) => {
@@ -461,10 +473,53 @@ window.addEventListener("keydown", (e) => {
 
 document.getElementById("done-btn").addEventListener("click", () => setEditMode(false));
 document.getElementById("reset-btn").addEventListener("click", async () => {
+  hiddenDefaults.length = 0;
+  await store.set("hiddenDefaults", hiddenDefaults);
   layout = structuredClone(DEFAULT_LAYOUT);
   await saveLayout();
   render();
 });
+
+// ---------- Adding and removing widgets ----------
+// What the fence widgets are allowed to use from this file.
+const fenceApp = {
+  layout: () => layout,
+  isEditMode: () => editMode,
+  saveLayout,
+  applyBox,
+  addWidget,
+  removeWidget,
+};
+
+function addWidget(props, x = window.innerWidth / 2, y = window.innerHeight / 2) {
+  const item = { id: `${props.type}-${Date.now()}`, w: 340, h: 220, ...props };
+  item.x = clamp(snap(x - item.w / 2), 0, window.innerWidth - item.w);
+  item.y = clamp(snap(y - 20), 0, window.innerHeight - item.h);
+  layout.push(item);
+  saveLayout();
+  render();
+}
+
+async function removeWidget(item) {
+  layout = layout.filter((w) => w !== item);
+  if (DEFAULT_LAYOUT.some((d) => d.id === item.id)) {
+    hiddenDefaults.push(item.id);
+    await store.set("hiddenDefaults", hiddenDefaults);
+  }
+  await saveLayout();
+  render();
+}
+
+document.getElementById("add-fence-btn").addEventListener("click", () =>
+  addWidget({
+    type: "fence",
+    title: "New fence",
+    color: FENCE_COLORS[layout.length % FENCE_COLORS.length],
+    items: [],
+  }));
+
+listenForFileDrops(fenceApp);
+
 
 render();
 reportHitRegions();
