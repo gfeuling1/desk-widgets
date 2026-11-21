@@ -10,7 +10,9 @@ use windows::Win32::Graphics::Gdi::{
     DeleteObject, GetDC, GetDIBits, GetObjectW, ReleaseDC, BITMAP, BITMAPINFO,
     BITMAPINFOHEADER, BI_RGB, DIB_RGB_COLORS, HBITMAP,
 };
-use windows::Win32::System::Com::{CoInitializeEx, CoTaskMemFree, COINIT_APARTMENTTHREADED};
+use windows::Win32::System::Com::{
+    CoInitializeEx, CoTaskMemFree, CoUninitialize, COINIT_APARTMENTTHREADED,
+};
 use windows::Win32::UI::Shell::{
     IShellItemImageFactory, SHCreateItemFromParsingName, SHGetKnownFolderPath, ShellExecuteW,
     FOLDERID_Desktop, FOLDERID_Downloads, FOLDERID_PublicDesktop, KNOWN_FOLDER_FLAG,
@@ -112,18 +114,30 @@ pub fn fence_path_info(paths: Vec<String>) -> Vec<FenceEntry> {
 }
 
 // The item's real Windows icon as a PNG the page can show.
+// Each icon gets its own short-lived thread, because the shell needs a COM
+// setup that would break album art if it ran on the shared background threads.
 #[tauri::command]
 pub async fn fence_icon(path: String) -> Option<String> {
-    tauri::async_runtime::spawn_blocking(move || unsafe { icon_png(&path, 64) })
-        .await
+    tauri::async_runtime::spawn_blocking(move || {
+        std::thread::spawn(move || unsafe {
+            let com = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
+            let png = icon_png(&path, 64);
+            if com.is_ok() {
+                CoUninitialize();
+            }
+            png
+        })
+        .join()
         .ok()
         .flatten()
+    })
+    .await
+    .ok()
+    .flatten()
 }
 
 unsafe fn icon_png(path: &str, size: i32) -> Option<String> {
     unsafe {
-        // The shell needs COM. It's fine if this thread already has it.
-        let _ = CoInitializeEx(None, COINIT_APARTMENTTHREADED);
         let factory: IShellItemImageFactory =
             SHCreateItemFromParsingName(&HSTRING::from(path), None).ok()?;
         let bitmap = factory
