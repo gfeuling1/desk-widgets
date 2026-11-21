@@ -1,5 +1,6 @@
 mod media;
 mod desktop;
+mod fences;
 use tauri::Manager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -25,8 +26,12 @@ pub fn run() {
             greet,
             media::media_now_playing,
             media::media_artwork,
-            media::media_control
-            desktop::set_hit_regions
+            media::media_control,
+            desktop::set_hit_regions,
+            fences::fence_list_folder,
+            fences::fence_path_info,
+            fences::fence_icon,
+            fences::fence_open
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
