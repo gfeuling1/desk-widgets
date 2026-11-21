@@ -204,3 +204,83 @@ html, body {
 .view-minimal .mu-visual { display: none; }
 
 .mu.idle .mu-controls, .mu.idle .mu-progress { opacity: 0.4; }
+
+/* Fences */
+.widget-fence { padding: 0; }
+.fence { display: flex; flex-direction: column; height: 100%; }
+.fence-head {
+  display: flex; align-items: center; gap: 8px;
+  flex-shrink: 0; height: 43px; box-sizing: border-box; padding: 0 14px 0 16px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 13px; cursor: pointer;
+}
+.fence.collapsed .fence-head { border-bottom: none; }
+.fence-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+.fence-title {
+  font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; outline: none;
+}
+.fence-title[contenteditable="true"] {
+  text-transform: none; letter-spacing: 0; padding: 1px 6px; border-radius: 4px;
+  background: rgba(255, 255, 255, 0.15); user-select: text; cursor: text;
+}
+.fence-count { margin-left: auto; opacity: 0.55; white-space: nowrap; }
+.fence-delete {
+  display: none; width: 22px; height: 22px; padding: 0; line-height: 20px;
+  border: none; border-radius: 6px; background: rgba(255, 80, 80, 0.75);
+  color: white; font-size: 16px; cursor: pointer;
+}
+.editing .fence-delete { display: block; }
+.editing .fence-dot { cursor: pointer; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.5); }
+
+.fence-search {
+  flex-shrink: 0; margin: 10px 12px 0; padding: 6px 10px;
+  border: none; border-radius: 8px; outline: none;
+  background: rgba(255, 255, 255, 0.1); color: white; font: inherit; font-size: 12px;
+}
+.fence-search::placeholder { color: rgba(255, 255, 255, 0.6); }
+
+.fence-grid {
+  flex: 1; min-height: 0; overflow-y: auto;
+  display: grid; grid-template-columns: repeat(auto-fill, 76px); grid-auto-rows: min-content;
+  gap: 6px 4px; padding: 12px; justify-content: start;
+}
+.fence.collapsed .fence-search, .fence.collapsed .fence-grid { display: none; }
+.fence-grid::-webkit-scrollbar { width: 6px; }
+.fence-grid::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.25); border-radius: 3px; }
+.fence-empty { grid-column: 1 / -1; padding: 16px 4px; font-size: 13px; opacity: 0.6; }
+
+.fence-item {
+  position: relative;
+  display: flex; flex-direction: column; align-items: center; gap: 6px;
+  padding: 6px 2px; border-radius: 10px; cursor: default;
+}
+.fence-item:hover { background: rgba(255, 255, 255, 0.14); }
+.fence-item.missing { opacity: 0.4; }
+.fence-item.dragging { opacity: 0.3; }
+.editing .fence-item { cursor: grab; }
+.fence-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: grid; place-items: center;
+  background: rgba(255, 255, 255, 0.18); font-weight: 700; font-size: 17px;
+}
+.fence-icon.has-img { background: none; }
+.fence-icon img { width: 40px; height: 40px; object-fit: contain; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.35)); }
+.fence-label {
+  max-width: 72px; font-size: 11.5px; line-height: 1.2; text-align: center;
+  overflow-wrap: anywhere; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.fence-remove {
+  display: none; position: absolute; top: 0; right: 6px;
+  width: 18px; height: 18px; padding: 0; line-height: 16px;
+  border: none; border-radius: 50%; background: rgba(255, 80, 80, 0.85);
+  color: white; font-size: 13px; cursor: pointer;
+}
+.editing .fence-item:hover .fence-remove { display: block; }
+
+.fence-ghost {
+  position: fixed; z-index: 20; width: 76px; pointer-events: none;
+  background: rgba(255, 255, 255, 0.2); opacity: 0.9;
+}
+.widget.drop-target { outline: 2px solid #5aa9ff !important; outline-offset: 2px; }
