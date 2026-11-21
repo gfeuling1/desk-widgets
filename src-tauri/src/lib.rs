@@ -1,3 +1,5 @@
+mod media;
+
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
 #[tauri::command]
 fn greet(name: &str) -> String {
@@ -10,7 +12,12 @@ pub fn run() {
         .plugin(tauri_plugin_http::init())
         .plugin(tauri_plugin_store::Builder::new().build())
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
+        .invoke_handler(tauri::generate_handler![
+            greet,
+            media::media_now_playing,
+            media::media_artwork,
+            media::media_control
+        ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
