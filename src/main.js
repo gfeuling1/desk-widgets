@@ -4,12 +4,40 @@ const GRID = 10;          // widgets snap to a 10px grid
 const MIN_W = 120;
 const MIN_H = 60;
 
-// Used the first time the app runs, or when you press "Reset layout".
+// Your personal settings. Change these to match where you live.
+const SETTINGS = {
+  weather: {
+    place: "Lakewood, CO",
+    latitude: 39.7047,
+    longitude: -105.0814,
+    temperatureUnit: "fahrenheit", // or "celsius"
+    windUnit: "mph",               // or "kmh"
+    refreshMinutes: 15,
+  },
+};
+
+// Every widget that should exist. New ones get added to your saved layout automatically.
 const DEFAULT_LAYOUT = [
   { id: "clock-1", type: "clock", x: 60, y: 60, w: 340, h: 140 },
+  { id: "weather-1", type: "weather", x: 60, y: 220, w: 340, h: 230 },
 ];
 
+// Weather code meanings from Open-Meteo's documentation.
+const WEATHER_CODES = {
+  0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
+  45: "Fog", 48: "Rime fog",
+  51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle",
+  56: "Freezing drizzle", 57: "Freezing drizzle",
+  61: "Light rain", 63: "Rain", 65: "Heavy rain",
+  66: "Freezing rain", 67: "Freezing rain",
+  71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains",
+  80: "Rain showers", 81: "Rain showers", 82: "Violent showers",
+  85: "Snow showers", 86: "Heavy snow showers",
+  95: "Thunderstorm", 96: "Thunderstorm, hail", 97: "Heavy thunderstorm", 99: "Thunderstorm, hail",
+};
+
 // Each widget type builds its content inside the element it's given.
+// If it starts a timer, it returns a function that stops it.
 const widgetTypes = {
   clock(el) {
     el.innerHTML = `<div class="clock-time"></div><div class="clock-date"></div>`;
@@ -21,13 +49,83 @@ const widgetTypes = {
       date.textContent = now.toLocaleDateString([], { weekday: "long", month: "long", day: "numeric" });
     };
     tick();
-    setInterval(tick, 1000);
+    const timer = setInterval(tick, 1000);
+    return () => clearInterval(timer);
+  },
+
+  weather(el) {
+    const cfg = SETTINGS.weather;
+    const unit = cfg.temperatureUnit === "celsius" ? "C" : "F";
+    el.innerHTML = `
+      <div class="wx-place">${cfg.place}</div>
+      <div class="wx-now">
+        <div class="wx-temp">--°</div>
+        <div>
+          <div class="wx-desc">Loading...</div>
+          <div class="wx-meta"></div>
+        </div>
+      </div>
+      <div class="wx-days"></div>`;
+    const temp = el.querySelector(".wx-temp");
+    const desc = el.querySelector(".wx-desc");
+    const meta = el.querySelector(".wx-meta");
+    const days = el.querySelector(".wx-days");
+
+    async function update() {
+      try {
+        const params = new URLSearchParams({
+          latitude: cfg.latitude,
+          longitude: cfg.longitude,
+          current: "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code",
+          daily: "weather_code,temperature_2m_max,temperature_2m_min",
+          temperature_unit: cfg.temperatureUnit,
+          wind_speed_unit: cfg.windUnit,
+          timezone: "auto",
+          forecast_days: 4,
+        });
+        const res = await fetch(`https://api.open-meteo.com/v1/forecast?${params}`);
+        if (!res.ok) throw new Error(`Weather request failed: ${res.status}`);
+        const data = await res.json();
+
+        const c = data.current;
+        temp.textContent = `${Math.round(c.temperature_2m)}°${unit}`;
+        desc.textContent = WEATHER_CODES[c.weather_code] ?? "Unknown";
+        meta.textContent =
+          `Feels ${Math.round(c.apparent_temperature)}° · ${c.relative_humidity_2m}% humidity · ` +
+          `${Math.round(c.wind_speed_10m)} ${cfg.windUnit}`;
+
+        const d = data.daily;
+        days.innerHTML = d.time.map((day, i) => {
+          const label = i === 0 ? "Today"
+            : new Date(day + "T00:00").toLocaleDateString([], { weekday: "short" });
+          return `
+            <div class="wx-day">
+              <div class="wx-day-name">${label}</div>
+              <div class="wx-day-desc">${WEATHER_CODES[d.weather_code[i]] ?? ""}</div>
+              <div class="wx-day-temps">${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</div>
+            </div>`;
+        }).join("");
+      } catch (err) {
+        console.error(err);
+        desc.textContent = "Weather unavailable";
+      }
+    }
+
+    update();
+    const timer = setInterval(update, cfg.refreshMinutes * 60 * 1000);
+    return () => clearInterval(timer);
   },
 };
 
 // ---------- Saving and loading ----------
 const store = await load("layout.json", { autoSave: 300 });
-let layout = (await store.get("widgets")) ?? structuredClone(DEFAULT_LAYOUT);
+let layout = (await store.get("widgets")) ?? [];
+
+// Add any default widgets missing from the saved layout, and drop unknown ones.
+for (const def of DEFAULT_LAYOUT) {
+  if (!layout.some((w) => w.id === def.id)) layout.push(structuredClone(def));
+}
+layout = layout.filter((w) => widgetTypes[w.type]);
 
 async function saveLayout() {
   await store.set("widgets", layout);
@@ -60,8 +158,11 @@ function trackPointer(target, startEvent, onMove, onEnd) {
 // ---------- Building the desktop ----------
 const desktop = document.getElementById("desktop");
 let editMode = false;
+let cleanups = [];
 
 function render() {
+  cleanups.forEach((stop) => stop());
+  cleanups = [];
   desktop.innerHTML = "";
   for (const item of layout) {
     const el = document.createElement("div");
@@ -77,7 +178,8 @@ function render() {
     el.appendChild(handle);
 
     desktop.appendChild(el);
-    widgetTypes[item.type](content);
+    const stop = widgetTypes[item.type](content);
+    if (typeof stop === "function") cleanups.push(stop);
 
     // Drag to move
     el.addEventListener("pointerdown", (e) => {
