@@ -1,4 +1,5 @@
 mod media;
+mod tray;
 mod desktop;
 mod fences;
 use tauri::Manager;
@@ -18,6 +19,7 @@ pub fn run() {
             desktop::pin_to_desktop(&window)?;
             desktop::start_click_through(window.clone());
             desktop::start_explorer_watchdog(window);
+            tray::create(app)?;
 
             // Start with Windows, but only for the installed app, not `npm run tauri dev`.
             #[cfg(not(debug_assertions))]
@@ -44,7 +46,8 @@ pub fn run() {
             fences::fence_list_folder,
             fences::fence_path_info,
             fences::fence_icon,
-            fences::fence_open
+            fences::fence_open,
+            tray::tray_edit_mode
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
