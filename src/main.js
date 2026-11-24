@@ -462,6 +462,7 @@ function setEditMode(on) {
   editMode = on;
   document.body.classList.toggle("editing", on);
   reportHitRegions();
+  window.__TAURI__.core.invoke("tray_edit_mode", { on }); // keeps the tray checkmark in sync
 }
 
 window.addEventListener("keydown", (e) => {
@@ -520,6 +521,10 @@ document.getElementById("add-fence-btn").addEventListener("click", () =>
 
 listenForFileDrops(fenceApp);
 
+// The tray menu's "Edit mode" item.
+window.__TAURI__.event.listen("tray-action", (e) => {
+  if (e.payload === "edit") setEditMode(!editMode);
+});
 
 render();
 reportHitRegions();
