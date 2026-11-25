@@ -10,6 +10,7 @@ pub struct EditItem(pub CheckMenuItem<Wry>);
 
 pub fn create(app: &App) -> tauri::Result<()> {
     let edit = CheckMenuItem::with_id(app, "edit", "Edit mode", true, false, None::<&str>)?;
+    let settings = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
     let reload = MenuItem::with_id(app, "reload", "Reload widgets", true, None::<&str>)?;
 
     // Only the installed app should change the startup setting, so this is
@@ -24,6 +25,7 @@ pub fn create(app: &App) -> tauri::Result<()> {
         app,
         &[
             &edit,
+            &settings,
             &reload,
             &PredefinedMenuItem::separator(app)?,
             &startup,
@@ -40,12 +42,12 @@ pub fn create(app: &App) -> tauri::Result<()> {
         .menu(&menu)
         .show_menu_on_left_click(true)
         .on_menu_event(move |app, event| match event.id().as_ref() {
-            "edit" => {
-                // Give the widgets keyboard focus so Ctrl+E works to leave edit mode.
+            // Both need keyboard focus: Ctrl+E to leave edit mode, typing in Settings.
+            id @ ("edit" | "settings") => {
                 if let Some(window) = app.get_webview_window("main") {
                     let _ = window.set_focus();
                 }
-                let _ = app.emit("tray-action", "edit");
+                let _ = app.emit("tray-action", id);
             }
             "reload" => {
                 if let Some(window) = app.get_webview_window("main") {
