@@ -1,29 +1,18 @@
 import { upcomingEvents } from "./calendar.js";
 import { fenceWidget, listenForFileDrops, FENCE_COLORS, COLLAPSED_H } from "./fences.js";
+import { loadSettings, openSettings } from "./settings.js";
 
 const { load } = window.__TAURI__.store;
 const { fetch: tauriFetch } = window.__TAURI__.http;
-
-// Private calendar links live in config.local.js, which is never committed.
-let CALENDARS = [];
-try {
-  ({ CALENDARS } = await import("./config.local.js"));
-} catch {
-  console.warn("No src/config.local.js found, so the calendar widget is empty.");
-}
 
 const GRID = 10;          // widgets snap to a 10px grid
 const MIN_W = 120;
 const MIN_H = 60;
 
-// Your personal settings. Change these to match where you live.
-const SETTINGS = {
+// How often widgets refresh. Your location, units, and calendar links
+// are in the Settings panel (tray menu > Settings), saved by settings.js.
+const TIMING = {
   weather: {
-    place: "Lakewood, CO",
-    latitude: 39.7047,
-    longitude: -105.0814,
-    temperatureUnit: "fahrenheit", // or "celsius"
-    windUnit: "mph",               // or "kmh"
     refreshMinutes: 15,
   },
   calendar: {
@@ -82,10 +71,10 @@ const widgetTypes = {
   },
 
     weather(el) {
-    const cfg = SETTINGS.weather;
+    const cfg = { ...settings.weather, ...TIMING.weather };
     const unit = cfg.temperatureUnit === "celsius" ? "C" : "F";
     el.innerHTML = `
-      <div class="wx-place">${cfg.place}</div>
+      <div class="wx-place">${escapeHtml(cfg.place)}</div>
       <div class="wx-now">
         <div class="wx-temp">--°</div>
         <div>
@@ -178,12 +167,13 @@ const widgetTypes = {
   },
 
     calendar(el) {
-    const cfg = SETTINGS.calendar;
+    const cfg = TIMING.calendar;
+    const calendars = settings.calendars;
     el.innerHTML = `<div class="cal-header">Upcoming</div><div class="cal-list">Loading...</div>`;
     const list = el.querySelector(".cal-list");
 
-    if (CALENDARS.length === 0) {
-      list.textContent = "Add a calendar link in src/config.local.js";
+    if (calendars.length === 0) {
+      list.textContent = "Add a calendar in Settings (tray menu > Settings)";
       return;
     }
 
@@ -223,19 +213,29 @@ const widgetTypes = {
       list.innerHTML = html;
     }
 
+    // One broken link shouldn't hide the other calendars.
     async function update() {
-      try {
-        const all = [];
-        for (const cal of CALENDARS) {
+      const all = [];
+      const failed = [];
+      for (const cal of calendars) {
+        try {
           const res = await tauriFetch(cal.url);
           if (!res.ok) throw new Error(`${cal.name} calendar failed: ${res.status}`);
           all.push(...upcomingEvents(await res.text(), cal.name, cal.color, cfg.daysAhead));
+        } catch (err) {
+          console.error(err);
+          failed.push(cal.name);
         }
-        all.sort((a, b) => a.start - b.start);
-        show(all.slice(0, cfg.maxEvents));
-      } catch (err) {
-        console.error(err);
+      }
+      if (failed.length === calendars.length) {
         list.textContent = "Calendar unavailable";
+        return;
+      }
+      all.sort((a, b) => a.start - b.start);
+      show(all.slice(0, cfg.maxEvents));
+      if (failed.length) {
+        list.insertAdjacentHTML("beforeend",
+          `<div class="cal-error">Couldn't load: ${escapeHtml(failed.join(", "))}</div>`);
       }
     }
 
@@ -354,6 +354,8 @@ const widgetTypes = {
 const store = await load("layout.json", { autoSave: 300 });
 let layout = (await store.get("widgets")) ?? [];
 
+let settings = await loadSettings(store);
+
 // Default widgets you deleted on purpose, so they don't come back.
 const hiddenDefaults = (await store.get("hiddenDefaults")) ?? [];
 
@@ -371,7 +373,7 @@ async function saveLayout() {
 // Tells Rust which areas should take clicks. Everywhere else passes through to the desktop.
 // In edit mode the whole screen takes clicks so you can drag freely.
 function reportHitRegions() {
-  const regions = editMode
+  const regions = editMode || settingsOpen
     ? [{ x: 0, y: 0, w: window.innerWidth, h: window.innerHeight }]
     : layout.map((w) => ({ x: w.x, y: w.y, w: w.w, h: boxHeight(w) }));
   window.__TAURI__.core.invoke("set_hit_regions", { regions });
@@ -405,6 +407,7 @@ function trackPointer(target, startEvent, onMove, onEnd) {
 // ---------- Building the desktop ----------
 const desktop = document.getElementById("desktop");
 let editMode = false;
+let settingsOpen = false;
 let cleanups = [];
 
 function render() {
@@ -466,7 +469,7 @@ function setEditMode(on) {
 }
 
 window.addEventListener("keydown", (e) => {
-  if (e.ctrlKey && e.key.toLowerCase() === "e") {
+  if (e.ctrlKey && e.key.toLowerCase() === "e" && !settingsOpen) {
     e.preventDefault();
     setEditMode(!editMode);
   }
@@ -521,9 +524,34 @@ document.getElementById("add-fence-btn").addEventListener("click", () =>
 
 listenForFileDrops(fenceApp);
 
-// The tray menu's "Edit mode" item.
+// ---------- Settings ----------
+function showSettings() {
+  if (settingsOpen) return;
+  settingsOpen = true;
+  reportHitRegions(); // the panel needs clicks, wherever it sits
+  openSettings(settings, {
+    async onSave(next) {
+      const w = settings.weather, n = next.weather;
+      const weatherChanged = w.latitude !== n.latitude || w.longitude !== n.longitude ||
+        w.temperatureUnit !== n.temperatureUnit || w.windUnit !== n.windUnit;
+      settings = next;
+      await store.set("settings", settings);
+      if (weatherChanged) await store.delete("weatherCache"); // old place or units
+      render(); // rebuild widgets with the new settings
+    },
+    onClose() {
+      settingsOpen = false;
+      reportHitRegions();
+    },
+  });
+}
+
+document.getElementById("settings-btn").addEventListener("click", showSettings);
+
+// The tray menu's "Edit mode" and "Settings" items.
 window.__TAURI__.event.listen("tray-action", (e) => {
   if (e.payload === "edit") setEditMode(!editMode);
+  if (e.payload === "settings") showSettings();
 });
 
 render();

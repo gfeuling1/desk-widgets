@@ -70,7 +70,8 @@ html, body {
   font: inherit;
   cursor: pointer;
 }
-#edit-banner #reset-btn { background: #555; }
+#edit-banner #reset-btn,
+#edit-banner #settings-btn { background: #555; }
 
 /* Weather */
 .wx-place { font-size: 13px; opacity: 0.7; margin-bottom: 4px; }
