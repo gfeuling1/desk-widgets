@@ -2,6 +2,8 @@ mod media;
 mod tray;
 mod desktop;
 mod fences;
+mod shortcut;
+mod stats;
 use tauri::Manager;
 
 // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
@@ -14,12 +16,14 @@ fn greet(name: &str) -> String {
 pub fn run() {
     tauri::Builder::default()
         .manage(desktop::HitRegions::default())
+        .manage(stats::StatsState::default())
                 .setup(|app| {
             let window = app.get_webview_window("main").expect("main window missing");
             desktop::pin_to_desktop(&window)?;
             desktop::start_click_through(window.clone());
             desktop::start_explorer_watchdog(window);
             tray::create(app)?;
+            shortcut::register(app)?;
 
             // Start with Windows, but only for the installed app, not `npm run tauri dev`.
             #[cfg(not(debug_assertions))]
@@ -47,7 +51,8 @@ pub fn run() {
             fences::fence_path_info,
             fences::fence_icon,
             fences::fence_open,
-            tray::tray_edit_mode
+            tray::tray_edit_mode,
+            stats::system_stats
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

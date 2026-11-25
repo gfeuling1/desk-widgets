@@ -9,7 +9,7 @@ use tauri_plugin_autostart::ManagerExt;
 pub struct EditItem(pub CheckMenuItem<Wry>);
 
 pub fn create(app: &App) -> tauri::Result<()> {
-    let edit = CheckMenuItem::with_id(app, "edit", "Edit mode", true, false, None::<&str>)?;
+    let edit = CheckMenuItem::with_id(app, "edit", "Edit mode", true, false, Some("Ctrl+Alt+W"))?;
     let settings = MenuItem::with_id(app, "settings", "Settings...", true, None::<&str>)?;
     let reload = MenuItem::with_id(app, "reload", "Reload widgets", true, None::<&str>)?;
 
