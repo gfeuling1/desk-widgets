@@ -1,6 +1,8 @@
 import { upcomingEvents } from "./calendar.js";
 import { fenceWidget, listenForFileDrops, FENCE_COLORS, COLLAPSED_H } from "./fences.js";
 import { loadSettings, openSettings } from "./settings.js";
+import { getWeather } from "./weather.js";
+import { notesWidget, countdownWidget, statsWidget } from "./widgets-extra.js";
 
 const { load } = window.__TAURI__.store;
 const { fetch: tauriFetch } = window.__TAURI__.http;
@@ -38,20 +40,6 @@ const DEFAULT_LAYOUT = [
 const escapeHtml = (text) =>
   String(text).replace(/[&<>"']/g, (ch) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[ch]);
-
-// Weather code meanings from Open-Meteo's documentation.
-const WEATHER_CODES = {
-  0: "Clear sky", 1: "Mainly clear", 2: "Partly cloudy", 3: "Overcast",
-  45: "Fog", 48: "Rime fog",
-  51: "Light drizzle", 53: "Drizzle", 55: "Heavy drizzle",
-  56: "Freezing drizzle", 57: "Freezing drizzle",
-  61: "Light rain", 63: "Rain", 65: "Heavy rain",
-  66: "Freezing rain", 67: "Freezing rain",
-  71: "Light snow", 73: "Snow", 75: "Heavy snow", 77: "Snow grains",
-  80: "Rain showers", 81: "Rain showers", 82: "Violent showers",
-  85: "Snow showers", 86: "Heavy snow showers",
-  95: "Thunderstorm", 96: "Thunderstorm, hail", 97: "Heavy thunderstorm", 99: "Thunderstorm, hail",
-};
 
 // Each widget type builds its content inside the element it's given.
 // If it starts a timer, it returns a function that stops it.
@@ -97,23 +85,28 @@ const widgetTypes = {
       return `${Math.round(mins / 60)} hr ago`;
     }
 
+    const deg = (n) => (n == null ? "--" : `${Math.round(n)}°`);
+    const windLabel = cfg.windUnit === "kmh" ? "km/h" : "mph";
+
     function show(data) {
       const c = data.current;
-      temp.textContent = `${Math.round(c.temperature_2m)}°${unit}`;
-      desc.textContent = WEATHER_CODES[c.weather_code] ?? "Unknown";
-      meta.textContent =
-        `Feels ${Math.round(c.apparent_temperature)}° · ${c.relative_humidity_2m}% humidity · ` +
-        `${Math.round(c.wind_speed_10m)} ${cfg.windUnit}`;
+      temp.textContent = c.temp == null ? "--°" : `${Math.round(c.temp)}°${unit}`;
+      desc.textContent = c.desc;
+      meta.textContent = [
+        c.feels != null && `Feels ${deg(c.feels)}`,
+        c.humidity != null && `${Math.round(c.humidity)}% humidity`,
+        c.wind != null && `${Math.round(c.wind)} ${windLabel}`,
+      ].filter(Boolean).join(" · ");
 
-      const d = data.daily;
-      days.innerHTML = d.time.map((day, i) => {
-        const label = i === 0 ? "Today"
-          : new Date(day + "T00:00").toLocaleDateString([], { weekday: "short" });
+      const today = new Date().toLocaleDateString("en-CA"); // YYYY-MM-DD
+      days.innerHTML = data.days.filter((d) => d.date >= today).map((d) => {
+        const label = d.date === today ? "Today"
+          : new Date(d.date + "T00:00").toLocaleDateString([], { weekday: "short" });
         return `
           <div class="wx-day">
             <div class="wx-day-name">${label}</div>
-            <div class="wx-day-desc">${WEATHER_CODES[d.weather_code[i]] ?? ""}</div>
-            <div class="wx-day-temps">${Math.round(d.temperature_2m_max[i])}° / ${Math.round(d.temperature_2m_min[i])}°</div>
+            <div class="wx-day-desc">${escapeHtml(d.desc)}</div>
+            <div class="wx-day-temps">${deg(d.hi)} / ${deg(d.lo)}</div>
           </div>`;
       }).join("");
     }
@@ -121,29 +114,16 @@ const widgetTypes = {
     // Returns true if fresh weather loaded, false if it fell back to saved weather.
     async function update() {
       try {
-        const params = new URLSearchParams({
-          latitude: cfg.latitude,
-          longitude: cfg.longitude,
-          current: "temperature_2m,apparent_temperature,relative_humidity_2m,wind_speed_10m,weather_code",
-          daily: "weather_code,temperature_2m_max,temperature_2m_min",
-          temperature_unit: cfg.temperatureUnit,
-          wind_speed_unit: cfg.windUnit,
-          timezone: "auto",
-          forecast_days: 4,
-        });
-        const res = await tauriFetch(`https://api.open-meteo.com/v1/forecast?${params}`, {
-          connectTimeout: 8000, // give up on a hanging server after 8 seconds
-        });
-        if (!res.ok) throw new Error(`Weather request failed: ${res.status}`);
-        const data = await res.json();
+        const { data, source } = await getWeather(cfg);
         show(data);
-        status.textContent = "";
-        await store.set("weatherCache", { data, savedAt: Date.now() });
+        // Only mention the source when it's the backup.
+        status.textContent = source === "Open-Meteo" ? "" : `via ${source}`;
+        await store.set("weatherCache", { version: 2, data, savedAt: Date.now() });
         return true;
       } catch (err) {
         console.error(err);
         const cached = await store.get("weatherCache");
-        if (cached) {
+        if (cached?.version === 2) {
           show(cached.data);
           status.textContent = `Offline · last updated ${minutesAgo(cached.savedAt)}`;
         } else {
@@ -244,6 +224,9 @@ const widgetTypes = {
     return () => clearInterval(timer);
   },
     fence: (el, item) => fenceWidget(el, item, fenceApp),
+    notes: (el, item) => notesWidget(el, item, fenceApp),
+    countdown: (el, item) => countdownWidget(el, item, fenceApp),
+    stats: (el) => statsWidget(el),
     music(el, item) {
     const { invoke } = window.__TAURI__.core;
     const VIEWS = ["record", "cover", "minimal"];
@@ -429,7 +412,9 @@ function render() {
     el.appendChild(handle);
 
     desktop.appendChild(el);
-    const stop = widgetTypes[item.type](content, item);
+    const build = widgetTypes[item.type];
+    if (!build) { el.remove(); continue; } // from a newer or older version
+    const stop = build(content, item);
     if (typeof stop === "function") cleanups.push(stop);
 
     // Drag to move
@@ -463,6 +448,7 @@ function render() {
 // ---------- Edit mode ----------
 function setEditMode(on) {
   editMode = on;
+  if (!on) addMenu.classList.remove("open");
   document.body.classList.toggle("editing", on);
   reportHitRegions();
   window.__TAURI__.core.invoke("tray_edit_mode", { on }); // keeps the tray checkmark in sync
@@ -495,10 +481,32 @@ const fenceApp = {
   removeWidget,
 };
 
-function addWidget(props, x = window.innerWidth / 2, y = window.innerHeight / 2) {
+// Finds the first empty spot big enough for a new widget, scanning from the top left.
+function findFreeSpot(w, h) {
+  const gap = 20;
+  const overlaps = (x, y) => layout.some((o) =>
+    x < o.x + o.w + gap && x + w + gap > o.x && y < o.y + boxHeight(o) + gap && y + h + gap > o.y);
+  for (let y = 40; y + h <= window.innerHeight - 40; y += GRID * 2) {
+    for (let x = 40; x + w <= window.innerWidth - 40; x += GRID * 2) {
+      if (!overlaps(x, y)) return { x, y };
+    }
+  }
+  return null;
+}
+
+// Adds a widget at (x, y), or in the first empty spot if no position is given.
+function addWidget(props, x, y) {
   const item = { id: `${props.type}-${Date.now()}`, w: 340, h: 220, ...props };
-  item.x = clamp(snap(x - item.w / 2), 0, window.innerWidth - item.w);
-  item.y = clamp(snap(y - 20), 0, window.innerHeight - item.h);
+  const spot = x == null ? findFreeSpot(item.w, item.h) : null;
+  if (spot) {
+    item.x = spot.x;
+    item.y = spot.y;
+  } else {
+    x ??= window.innerWidth / 2;
+    y ??= window.innerHeight / 2;
+    item.x = clamp(snap(x - item.w / 2), 0, window.innerWidth - item.w);
+    item.y = clamp(snap(y - 20), 0, window.innerHeight - item.h);
+  }
   layout.push(item);
   saveLayout();
   render();
@@ -514,13 +522,36 @@ async function removeWidget(item) {
   render();
 }
 
-document.getElementById("add-fence-btn").addEventListener("click", () =>
-  addWidget({
-    type: "fence",
-    title: "New fence",
-    color: FENCE_COLORS[layout.length % FENCE_COLORS.length],
-    items: [],
-  }));
+// The "+ Add widget" menu in the edit banner.
+const ADDABLE = [
+  { label: "Fence", make: () => ({ type: "fence", title: "New fence",
+      color: FENCE_COLORS[layout.length % FENCE_COLORS.length], items: [], w: 340, h: 260 }) },
+  { label: "Notes", make: () => ({ type: "notes", title: "Notes", text: "", w: 300, h: 240 }) },
+  { label: "Countdown", make: () => ({ type: "countdown", title: "", target: null, w: 300, h: 170 }) },
+  { label: "System stats", make: () => ({ type: "stats", w: 320, h: 220 }) },
+  // These only show up if you've deleted them.
+  { label: "Clock", single: "clock", make: () => ({ type: "clock", w: 340, h: 140 }) },
+  { label: "Weather", single: "weather", make: () => ({ type: "weather", w: 340, h: 230 }) },
+  { label: "Calendar", single: "calendar", make: () => ({ type: "calendar", w: 340, h: 300 }) },
+  { label: "Music", single: "music", make: () => ({ type: "music", view: "record", w: 460, h: 220 }) },
+];
+
+const addMenu = document.getElementById("add-menu");
+document.getElementById("add-btn").addEventListener("click", (e) => {
+  e.stopPropagation();
+  if (addMenu.classList.toggle("open")) {
+    addMenu.innerHTML = ADDABLE
+      .filter((a) => !a.single || !layout.some((w) => w.type === a.single))
+      .map((a) => `<button data-label="${a.label}">${a.label}</button>`).join("");
+  }
+});
+addMenu.addEventListener("click", (e) => {
+  const choice = ADDABLE.find((a) => a.label === e.target.dataset.label);
+  if (!choice) return;
+  addMenu.classList.remove("open");
+  addWidget(choice.make());
+});
+document.addEventListener("click", () => addMenu.classList.remove("open"));
 
 listenForFileDrops(fenceApp);
 

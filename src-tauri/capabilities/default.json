@@ -15,6 +15,7 @@
       { "url": "https://calendar.google.com/*" },
       { "url": "https://api.open-meteo.com/*" },
       { "url": "https://geocoding-api.open-meteo.com/*" },
+      { "url": "https://api.weather.gov/*" },
       { "url": "https://outlook.office365.com/*" },
       { "url": "https://outlook.live.com/*" },
       { "url": "https://*.icloud.com/*" }

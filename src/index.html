@@ -5,15 +5,19 @@
   <link rel="stylesheet" href="styles.css" />
   <title>Desk Widgets</title>
   <link rel="stylesheet" href="settings.css" />
+  <link rel="stylesheet" href="widgets-extra.css" />
   <script type="module" src="main.js" defer></script>
 </head>
 <body>
   <div id="edit-banner">
-    Edit mode: drag widgets to move, drag the corner to resize
-    <button id="add-fence-btn">+ Fence</button>
+    Edit mode: drag to move, drag the corner to resize
+    <div id="add-wrap">
+      <button id="add-btn">+ Add widget</button>
+      <div id="add-menu"></div>
+    </div>
     <button id="settings-btn">Settings</button>
     <button id="reset-btn">Reset layout</button>
-    <button id="done-btn">Done (Ctrl+E)</button>
+    <button id="done-btn">Done (Ctrl+Alt+W)</button>
   </div>
   <div id="desktop"></div>
 </body>

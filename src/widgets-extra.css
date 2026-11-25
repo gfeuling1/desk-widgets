@@ -1,0 +1,115 @@
+/* Keep the edit banner on one line now that it has four buttons */
+#edit-banner { white-space: nowrap; }
+
+/* "+ Add widget" menu in the edit banner */
+#add-wrap { position: relative; }
+#add-menu {
+  display: none;
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  min-width: 160px;
+  padding: 6px;
+  border-radius: 10px;
+  background: rgba(24, 24, 34, 0.96);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+  flex-direction: column;
+  gap: 2px;
+}
+#add-menu.open { display: flex; }
+#edit-banner #add-menu button {
+  background: transparent;
+  text-align: left;
+  border-radius: 6px;
+}
+#edit-banner #add-menu button:hover { background: rgba(255, 255, 255, 0.12); }
+
+/* In edit mode, the whole widget drags instead of typing or clicking inside it */
+.editing .widget-notes .widget-content > *,
+.editing .widget-countdown .widget-content * { pointer-events: none; }
+
+/* Notes */
+.widget-notes .widget-content { display: flex; flex-direction: column; }
+.notes-title {
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  opacity: 0.75;
+  outline: none;
+  user-select: text;
+}
+.notes-text {
+  flex: 1;
+  width: 100%;
+  resize: none;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: white;
+  font: 15px/1.5 "Segoe UI", sans-serif;
+  user-select: text;
+}
+.notes-text::placeholder { color: rgba(255, 255, 255, 0.4); }
+
+/* Countdown */
+.widget-countdown .widget-content { position: relative; }
+.cd-title { font-size: 13px; opacity: 0.75; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding-right: 24px; }
+.cd-big { margin-top: 4px; line-height: 1; }
+.cd-num { font-size: min(42cqh, 22cqw); font-weight: 300; }
+.cd-unit { font-size: min(16cqh, 8cqw); opacity: 0.8; }
+.cd-sub { margin-top: 8px; font-size: 12px; opacity: 0.7; }
+.cd-edit {
+  position: absolute;
+  top: -4px;
+  right: -10px;
+  padding: 2px 6px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: white;
+  font-size: 15px;
+  opacity: 0;
+  cursor: pointer;
+}
+.widget-countdown:hover .cd-edit { opacity: 0.7; }
+.cd-edit:hover { background: rgba(255, 255, 255, 0.15); }
+
+.cd-form { display: none; flex-direction: column; gap: 8px; }
+.cd-editing .cd-view { display: none; }
+.cd-editing .cd-form { display: flex; }
+.cd-form input {
+  padding: 6px 8px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font: 13px "Segoe UI", sans-serif;
+  color-scheme: dark;
+  outline: none;
+  user-select: text;
+}
+.cd-form input:focus { border-color: #3b82f6; }
+.cd-buttons { display: flex; justify-content: flex-end; gap: 6px; }
+.cd-buttons button {
+  padding: 5px 12px;
+  border: none;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font: 13px "Segoe UI", sans-serif;
+  cursor: pointer;
+}
+.cd-buttons .cd-save { background: #3b82f6; }
+
+/* System stats */
+.st-header { margin-bottom: 10px; font-size: 13px; opacity: 0.75; }
+.st-uptime { opacity: 0.8; }
+.st-rows { display: flex; flex-direction: column; gap: 9px; }
+.st-row { display: grid; grid-template-columns: 62px 1fr auto; align-items: center; gap: 10px; font-size: 13px; }
+.st-label { opacity: 0.85; }
+.st-bar { height: 6px; border-radius: 3px; background: rgba(255, 255, 255, 0.12); overflow: hidden; }
+.st-bar > div { height: 100%; border-radius: 3px; transition: width 0.6s ease; }
+.st-value { min-width: 84px; text-align: right; font-variant-numeric: tabular-nums; opacity: 0.9; }
+.st-net { margin-top: 12px; font-size: 12px; opacity: 0.7; white-space: pre; font-variant-numeric: tabular-nums; }
