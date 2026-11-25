@@ -1,0 +1,105 @@
+/* Settings panel */
+#settings-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.35);
+}
+
+.settings {
+  width: min(560px, 92vw);
+  max-height: 86vh;
+  overflow-y: auto;
+  box-sizing: border-box;
+  padding: 20px 24px;
+  border-radius: 16px;
+  background: rgba(24, 24, 34, 0.94);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+  font-size: 14px;
+  user-select: text;
+}
+
+.settings-header { display: flex; align-items: center; justify-content: space-between; }
+.settings h2 { margin: 0; font-size: 20px; font-weight: 600; }
+.settings h3 {
+  margin: 20px 0 8px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  opacity: 0.7;
+}
+.settings section + section { border-top: 1px solid rgba(255, 255, 255, 0.1); }
+
+.settings-label { display: block; margin: 10px 0 4px; font-size: 12px; opacity: 0.75; }
+.settings-hint { margin: 0 0 10px; font-size: 12px; line-height: 1.5; opacity: 0.7; }
+.settings-dim { opacity: 0.6; }
+.settings-row { display: flex; gap: 8px; }
+.settings-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+
+.settings input[type="text"],
+.settings input[type="password"],
+.settings select {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 7px 10px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  color: white;
+  font: inherit;
+  outline: none;
+}
+.settings input:focus,
+.settings select:focus { border-color: #3b82f6; }
+.settings select option { background: #222; }
+
+.settings button {
+  padding: 7px 14px;
+  border: none;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.12);
+  color: white;
+  font: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.settings button:hover { background: rgba(255, 255, 255, 0.2); }
+
+.settings .settings-x {
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+}
+
+.loc-results { display: flex; flex-direction: column; gap: 4px; margin-top: 6px; font-size: 13px; }
+.settings .loc-option { text-align: left; background: rgba(255, 255, 255, 0.06); }
+.loc-current { margin-top: 8px; font-size: 13px; }
+
+.cal-rows { display: flex; flex-direction: column; gap: 8px; margin-bottom: 10px; }
+.cal-row { display: grid; grid-template-columns: 34px 130px 1fr 30px; gap: 8px; align-items: center; }
+.cal-row .cal-color {
+  width: 34px;
+  height: 32px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 8px;
+  background: transparent;
+  cursor: pointer;
+}
+.settings .cal-remove { width: 30px; padding: 6px 0; background: transparent; font-size: 18px; line-height: 1; }
+.settings .cal-remove:hover { background: #d9534f; }
+
+.settings-error { min-height: 18px; margin-top: 14px; color: #fca5a5; font-size: 13px; }
+.settings-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 6px; }
+.settings .settings-save { background: #3b82f6; }
+.settings .settings-save:hover { background: #2563eb; }
+
+/* Shown under the calendar list if one of several calendars fails */
+.cal-error { margin-top: 8px; font-size: 12px; color: #fca5a5; }
